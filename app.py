@@ -4,24 +4,29 @@ import numpy as np
 from PIL import Image
 import cv2
 
-# --- NEW IMPORTS TO BUILD THE EMPTY BODY ---
+# --- NEW IMPORTS ---
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Dropout, RandomFlip, RandomRotation, RandomZoom
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Dropout
 
 # --- 1. SET UP THE PAGE ---
 st.set_page_config(page_title="Pidao's AI Classifier", page_icon="🐾")
 st.title("🐱 Cat vs 🐶 Dog Classifier")
 st.write("Upload an image below and the machine will try to guess it!")
 
-# --- 2. LOAD THE SAVED BRAIN ---
+# --- 2. ADMIN CONTROLS (NEW SIDEBAR) ---
+with st.sidebar:
+    st.header("⚙️ Admin Controls")
+    st.write("Use this if the app starts making bad predictions.")
+    if st.button("🔄 Reset Machine Brain"):
+        st.cache_resource.clear()
+        st.rerun()
+
+# --- 3. LOAD THE SAVED BRAIN ---
 @st.cache_resource
 def load_model():
-    # A. Build the empty body (NO optimizer)
+    # A. Build the empty body (Training layers removed, input_shape moved here)
     model = Sequential([
-        RandomFlip("horizontal", input_shape=(256, 256, 1)),
-        RandomRotation(0.1),
-        RandomZoom(0.1),
-        Conv2D(16, (3,3), 1, activation='relu'),
+        Conv2D(16, (3,3), 1, activation='relu', input_shape=(256, 256, 1)),
         MaxPooling2D(),
         Conv2D(32, (3,3), 1, activation='relu'),
         MaxPooling2D(),
@@ -39,17 +44,16 @@ def load_model():
 
 model = load_model()
 
-# --- 3. THE UPLOAD BUTTON ---
+# --- 4. THE UPLOAD BUTTON ---
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Show the image on the screen
-    image = Image.open(uploaded_file)
+    # --- FIX: Force RGB conversion immediately to strip Alpha channels ---
+    image = Image.open(uploaded_file).convert('RGB')
     st.image(image, caption='Uploaded Image', use_container_width=True)
     st.write("Processing...")
 
-    # --- 4. PRE-PROCESS (Just like we did in the training script!) ---
-    # Convert the image to an array
+    # --- 5. PRE-PROCESS ---
     img_array = np.array(image)
     
     # Convert to Grayscale to respect our model's rules
@@ -61,11 +65,11 @@ if uploaded_file is not None:
     img_gray = np.expand_dims(img_gray, axis=-1)
     resize = tf.image.resize(img_gray, (256, 256))
     
-    # --- 5. PREDICT ---
+    # --- 6. PREDICT ---
     yhat = model.predict(np.expand_dims(resize/255, 0))
     confidence = float(yhat[0][0])
     
-    # --- 6. DISPLAY RESULTS ---
+    # --- 7. DISPLAY RESULTS ---
     st.divider()
     if confidence > 0.5:
         st.success(f"### Predicted: DOG 🐶")
